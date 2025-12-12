@@ -1,0 +1,602 @@
+{
+  "name": "AI Email Responder",
+  "nodes": [
+    {
+      "parameters": {
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "n8n",
+          "mode": "list",
+          "cachedResultName": "n8n"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        352,
+        736
+      ],
+      "id": "e40adea7-abf6-4ca0-8746-003c212b463f",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "wuGHZWyYcJyicJnx",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        528,
+        -432
+      ],
+      "id": "b7545050-ddf3-478d-a2b9-84fce41104bc",
+      "name": "No Action Required"
+    },
+    {
+      "parameters": {
+        "sendTo": "khatanawaqar220@gmail.com",
+        "subject": "=Fwd: {{ $('Incoming Email Trigger').item.json.Subject }}",
+        "emailType": "text",
+        "message": "={{ $('Incoming Email Trigger').item.json.snippet }}\n\n---\n\nOriginal Sender: {{ $('Incoming Email Trigger').item.json.From }}\n\nSubject: {{ $('Incoming Email Trigger').item.json.Subject }}\n\nTo: {{ $('Incoming Email Trigger').item.json.To }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        528,
+        -144
+      ],
+      "id": "2a0de661-a0c5-4c88-8c46-f099253a9dfa",
+      "name": "Urgent Human Action Required",
+      "webhookId": "bb9e3dd9-c5c2-4a08-bc86-1705ebabbc84",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "SFB5gTZkWTWFJs55",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.output[0].content[0].text.email_body }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a professional AI email assistant representing a company called TechSphere IT Solutions and have access to a vector database containing accurate and up-to-date information about the company, its services, offerings, and pricing. Your task is to draft a clear, concise, and polite email in response to the user’s prompt, using only relevant information from the vector database. \n\nGuidelines:\n\n1. Always rely on the vector database for facts about the company, services, and pricing. Do not make up any details that are not present in the database.\n2. Tailor the tone of the email to the context of the user’s request — professional, helpful, and courteous.\n3. Keep the email concise and structured: include a greeting, a relevant response based on the user query, and a polite closing.\n4. If multiple solutions or pricing options exist, mention them clearly, but avoid overloading the email with unnecessary details.\n5. Do not include information outside the scope of the vector database.\n6. Maintain proper grammar, punctuation, and professional formatting.\n7. Output only the email draft text — do not include explanations, metadata, or any system instructions.\n8. Never include names in greeting.\n9. Remember, you are a representative of the company and must act accordingly.\n10. If the information regarding the user inquiry is not available in the vector database, do not make up anything.\n\nAlways sign off with the following;\nBest Regards,\nTechsphere IT Solutions Team\n\nOutput Format:\nProduce ouput in the following format ALWAYS:\n{\n\"content\": \"email draft you produce\",\n\"email_subject\": {{ $json.output[0].content[0].text.email_subject }},\n\"email_id\": {{ $json.output[0].content[0].text.email_id }},\n\"email_threadId\": {{ $json.output[0].content[0].text.email_threadId }},\n\"email_from\": {{ $json.output[0].content[0].text.email_from }}\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        464,
+        304
+      ],
+      "id": "a6db380f-4e57-4568-a082-621259f9a8be",
+      "name": "Draft a Reply"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -496,
+        -240
+      ],
+      "id": "de0d2a53-4e9b-4333-89e2-49cda5d0401c",
+      "name": "Incoming Email Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "SFB5gTZkWTWFJs55",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=You are an email classification assistant. Read the full email content (subject + body + any short metadata), decide which single category best describes the email, and return **only** a valid JSON object with keys \"classification\", \"email_body\", \"email_subject\", \"email_from\", \"email_id\", \"email_threadId\". The value of classification must be exactly one of these four strings (case and spacing must match exactly):\n\n- \"General inquiry\"\n- \"Pricing request\"\n- \"Urgent human attention\"\n- \"Spam or irrelevant\"\n\nRules:\n1. **Return exactly one** category. Do not return lists, explanations, or any text outside the single JSON object.\n2. If the email contains multiple intents, choose the **primary intent** — the single action the sender most wants.\n3. **Priority overrides** (when multiple labels apply, pick the highest-priority label listed here):\n   - If the sender expresses urgent safety, legal, payment, medical, or time-critical issues (deadlines <24h, threats, account lockouts preventing access) → \"Urgent human attention\".\n4. Define categories as follows (use these to decide):\n   - \"General inquiry\": generic questions about services, schedules, enrollment, or requests for non-urgent information.\n   - \"Pricing request\": asks for costs, quotes, discounts, invoices, billing details, pricing comparisons.\n   - \"Urgent human attention\": anything requiring immediate human intervention (legal threats, safety, deadlines under 24 hours, account compromise, payment failure preventing service).\n   - \"Spam or irrelevant\": marketing, newsletters, automated notifications, phishing, promotions, or content not relevant to business operations.\n5. If language is not English, still classify based on translated meaning. If content is unreadable (garbled) or only contains unsubscribe/promotional links, choose \"Spam or irrelevant\".\n6. Output MUST be valid JSON. Example valid outputs:\n\n   {\n  \"classification\": \"Value\",\n  \"email_body\": \"{{ $json.snippet }}\",\n  \"email_subject\": \"{{ $json.Subject }}\",\n  \"email_from\": \"{{ $json.From }}\",\n  \"email_id\": \"{{ $json.id }}\",\n  \"email_threadId\": \"{{ $json.threadId }}\"\n  }\n7. Never add additional fields, punctuation, commentary, or explanation. Only the JSON object is allowed."
+            },
+            {
+              "content": "=email_body: {{ $json.snippet }}\nemail_subject: {{ $json.Subject }}\nemail_from: {{ $json.From }}\nemail_id: {{ $json.id }}\nemail_threadId: {{ $json.threadId }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -256,
+        -240
+      ],
+      "id": "4c91fdb2-3f7c-473e-b7bf-b3e09d657152",
+      "name": "Email Classifier",
+      "credentials": {
+        "openAiApi": {
+          "id": "BtBtaTehogYKtR23",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "- Classifies an email into one of the following categories\n    - \"General inquiry\"\n   - \"Pricing request\"\n   - \"Urgent human attention\"\n   - \"Spam or irrelevant\"",
+        "height": 368,
+        "width": 256,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -272,
+        -416
+      ],
+      "typeVersion": 1,
+      "id": "cf96333e-68ff-4e82-a4ec-cf222126f06a",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output[0].content[0].text.classification }}",
+                    "rightValue": "Spam or irrelevant",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "710d0c7f-b0d0-4f96-bdda-2dbfcafee675"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "654350fa-5823-457a-8ced-b97be2bae070",
+                    "leftValue": "={{ $json.output[0].content[0].text.classification }}",
+                    "rightValue": "=Urgent human attention",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6582a047-62a7-4e33-a331-d53eff65e9e3",
+                    "leftValue": "",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        96,
+        -256
+      ],
+      "id": "971152bd-0149-41b9-9c6f-e494189c0a11",
+      "name": "Decision Tree",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "content": "- Listens for incoming emails every minute\n",
+        "height": 368,
+        "width": 256,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -560,
+        -416
+      ],
+      "typeVersion": 1,
+      "id": "609c06e4-9c21-483a-b983-639688a8ceba",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "- Decides what route to take based on email classification",
+        "height": 368,
+        "width": 256,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        16,
+        -416
+      ],
+      "typeVersion": 1,
+      "id": "c75b6456-cd8b-45d9-bbcb-a8364b476dae",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "If the email is classified as 'spam or irrelevant', don't do anything",
+        "height": 240,
+        "width": 320,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        432,
+        -512
+      ],
+      "typeVersion": 1,
+      "id": "8a763f08-a7c4-4648-bd5d-0d7264070a40",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "If the email is classied as 'Urgent human action', send it to the on-call representative.",
+        "height": 272,
+        "width": 320,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        432,
+        -224
+      ],
+      "typeVersion": 1,
+      "id": "1199b654-839b-43e1-aa1e-baba979d01dc",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "### If the email is classied as 'General Inquiry' or 'Pricing request', draft a reply based on the information retrieved from the vector store.",
+        "height": 960,
+        "width": 992,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        144,
+        144
+      ],
+      "typeVersion": 1,
+      "id": "790ae9f6-df6f-4044-bbc5-80ca28675428",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        432,
+        944
+      ],
+      "id": "255add37-447f-4c9e-b074-b4e027866109",
+      "name": "text-embedding-3-small",
+      "credentials": {
+        "openAiApi": {
+          "id": "BtBtaTehogYKtR23",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Returns company profile, services and pricing information from the vector database"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        528
+      ],
+      "id": "f4d56d1b-1f4b-46f4-a750-c89dcda2176c",
+      "name": "Vector Store for Data Access"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={\n  \"type\": \"object\",\n  \"properties\": {\n    \"content\": {\n      \"type\": \"string\"\n    },\n    \"email_subject\": {\n      \"type\": \"string\"\n    },\n    \"email_id\": {\n      \"type\": \"string\"\n    },\n    \"email_threadId\": {\n      \"type\": \"string\"\n    },\n    \"email_from\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"content\",\n    \"email_subject\",\n    \"email_id\",\n    \"email_threadId\",\n    \"email_from\"\n  ]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        736,
+        528
+      ],
+      "id": "f463a1a0-17a0-4f8c-802b-f10cee73bac7",
+      "name": "JSON Output"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.output.email_subject }}",
+        "message": "={{ $json.output.content }}",
+        "options": {
+          "threadId": "={{ $json.output.email_threadId }}",
+          "sendTo": "={{ $json.output.email_from }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        944,
+        304
+      ],
+      "id": "902c9f62-20a9-4faa-9b7f-e887cfff12f3",
+      "name": "Create Draft",
+      "webhookId": "0d7c1f6e-42c2-47e2-bd54-62d808073022",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "SFB5gTZkWTWFJs55",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        320,
+        512
+      ],
+      "id": "64640f8c-7104-4e89-9ead-e2e53fae9328",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "BtBtaTehogYKtR23",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        640,
+        704
+      ],
+      "id": "e31be6da-c8f5-44df-9f23-f37adb15196c",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "BtBtaTehogYKtR23",
+          "name": "OpenAi account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Pinecone Vector Store": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Vector Store for Data Access",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Urgent Human Action Required": {
+      "main": [
+        []
+      ]
+    },
+    "Draft a Reply": {
+      "main": [
+        [
+          {
+            "node": "Create Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Incoming Email Trigger": {
+      "main": [
+        [
+          {
+            "node": "Email Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Classifier": {
+      "main": [
+        [
+          {
+            "node": "Decision Tree",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Tree": {
+      "main": [
+        [
+          {
+            "node": "No Action Required",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Urgent Human Action Required",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Draft a Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "text-embedding-3-small": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Store for Data Access": {
+      "ai_tool": [
+        [
+          {
+            "node": "Draft a Reply",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON Output": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Draft a Reply",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Draft a Reply",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vector Store for Data Access",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3def2dc2-a25f-4427-b757-15dba7628fa4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f0c12484e1f7e81761082c604f07754005faf1146d7fa6cde1b1dd3f10eca44b"
+  },
+  "id": "GuUUuq6KqeaRk494",
+  "tags": []
+}
