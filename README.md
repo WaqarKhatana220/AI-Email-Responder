@@ -8,8 +8,7 @@ It is designed to intelligently classify incoming emails, decide the correct act
 
 Polls Gmail inbox every 1 minute.
 
-### ✓ AI Email Classification (Strict JSON Output)
-
+### ✓ AI Email Classification
 Emails are classified into exactly one of these categories:
 
 - General inquiry
@@ -19,8 +18,6 @@ Emails are classified into exactly one of these categories:
 - Urgent human attention
 
 - Spam or irrelevant
-
-The AI returns JSON in this format:
 
 ### ✓ Smart Routing Based on Classification
 
