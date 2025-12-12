@@ -37,8 +37,6 @@ The workflow retrieves relevant company info from Pinecone:
 
 - Pricing
 
-- Policies
-
 - Company introduction
 
 GPT uses only this data to write a safe, accurate reply.
